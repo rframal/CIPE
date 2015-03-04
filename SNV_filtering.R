@@ -1,5 +1,5 @@
 #Filtrando SNVs
-
+#Inserindo comentario teste
 exomas<-read.table("all_fs_qd_toR.csv", header=T, sep="\t")
 
 #Filtrar SNVs com cobertura total >= 10,  )
