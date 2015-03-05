@@ -6,7 +6,7 @@ mincover_vr<-function(v){
 } 
 
 Variantes<-function(Variant_file,sufixos=c("T","S"),
-                    mutations<-c("MISSENSE","NONSENSE"),type<-c("SNV"),location="somatic"
+                    mutations=c("MISSENSE","NONSENSE"),type=c("SNV"),location="somatic",
                     cover_limit=10,freq_lim_neg=20,freq_lim_pos=20,
                     outfile="Somatic_mutations_new.txt",barplot=TRUE,barplot_file="Exoma_barplot.pdf"){
   #Filtra SNVs com cobertura suficiente e seleciona SNVs somáticas
@@ -38,7 +38,7 @@ Variantes<-function(Variant_file,sufixos=c("T","S"),
      }
      This_mutations<-subexomas[cond_sufixo1 & cond_sufixo2,] 
      #De acordo com 'location', filtra mutações somáticas, ausentes no sangue, ou germinativas, presentes em sangue e tumor.
-     This_data<-data.frame(Pac=rep(amostra,NROW(This_mutations)),This_mutations[,c(1:3,col_num_COVr,col_num_COVv,col_num_FreqV_1,46,56,57,63,67:70)]
+     This_data<-data.frame(Pac=rep(amostra,NROW(This_mutations)),This_mutations[,c(1:3,col_num_COVr,col_num_COVv,col_num_FreqV_1,46,56,57,63,67:70)])
      colnames(This_data)<-c("Paciente",colnames(subexomas)[1:3],paste(sufixos[1],"COVr",sep="_"),
                                       paste(sufixos[1],"COVv",sep="_"),paste(sufixos[1],"FreqV",sep="_"),
                                       colnames(subexomas)[c(46,56,57,63,67:70)])
