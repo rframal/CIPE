@@ -1,0 +1,75 @@
+mincover_vr<-function(v){
+  #Função para somar coberturas v e r a cada amostra. Retorna a cobertura mínima entre as amostras
+  k<-length(v)  
+  covers<-v[seq(1,k-1,2)]+v[seq(2,k,2)]
+  return(min(covers))
+} 
+
+Variantes<-function(Variant_file,sufixos=c("T","S"),
+                    mutations<-c("MISSENSE","NONSENSE"),type<-c("SNV"),location="somatic"
+                    cover_limit=10,freq_lim_neg=20,freq_lim_pos=20,
+                    outfile="Somatic_mutations_new.txt",barplot=TRUE,barplot_file="Exoma_barplot.pdf"){
+  #Filtra SNVs com cobertura suficiente e seleciona SNVs somáticas
+  #Filtrando SNVs
+  exomas<-read.table(Variant_file, header=T, sep="\t")
+  cond_cover <- apply(exomas[,grep("_COV",colnames(exomas))],1,mincover_vr)>=cover_limit
+  #Filtrar mutações com cobertura total >= cover_limit
+  cond_class <- exomas$Variant_class2 %in% mutations
+  #Filtrar mutações dos tipos contidos em "mutations"
+  cond_type  <- exomas$Type_SNV_or_INDEL %in% type
+  #Filtrar mutações dos tipos contidos em "type"
+  subexomas <- exomas[cond_cover & cond_class & cond_type,]
+  amostras <- grep("_COVr",colnames(exomas),value=TRUE)
+  amostras <- grep(paste(sufixos[1],"_",sep=""),amostras,value=TRUE)
+  amostras <- sapply(amostras,function(str){strsplit(str,sufixos[1],fixed=TRUE)[[1]][1]},USE.NAMES=FALSE)
+  #Obtêm lista de amostras do arquivo 'Variant_file'
+  inicio=1
+  for (amostra in amostras){
+     #A cada amostra, filtra mutações de interesse (somaticas ou germinativas) e as salva em arquivo output. 
+     col_num_FreqV_1<-which(colnames(subexomas)==paste(amostra,sufixos[1],"_FreqV",sep=""))
+     col_num_FreqV_2<-which(colnames(subexomas)==paste(amostra,sufixos[2],"_FreqV",sep=""))
+     col_num_COVr <- which(colnames(subexomas)==paste(amostra,sufixos[1],"_COVr",sep=""))
+     col_num_COVv <- which(colnames(subexomas)==paste(amostra,sufixos[1],"_COVv",sep=""))
+     cond_sufixo1 <- subexomas[,col_num_FreqV_1] >= freq_lim_pos #presente no tumor
+     if (location=="somatic"){
+       cond_sufixo2 <- subexomas[,col_num_FreqV_2] < freq_lim_neg #ausente no sangue
+     }else{
+       cond_sufixo2 <- subexomas[,col_num_FreqV_2] >= freq_lim_pos #presente no sangue
+     }
+     This_mutations<-subexomas[cond_sufixo1 & cond_sufixo2,] 
+     #De acordo com 'location', filtra mutações somáticas, ausentes no sangue, ou germinativas, presentes em sangue e tumor.
+     This_data<-data.frame(Pac=rep(amostra,NROW(This_mutations)),This_mutations[,c(1:3,col_num_COVr,col_num_COVv,col_num_FreqV_1,46,56,57,63,67:70)]
+     colnames(This_data)<-c("Paciente",colnames(subexomas)[1:3],paste(sufixos[1],"COVr",sep="_"),
+                                      paste(sufixos[1],"COVv",sep="_"),paste(sufixos[1],"FreqV",sep="_"),
+                                      colnames(subexomas)[c(46,56,57,63,67:70)])
+     if(inicio==1){
+        Final_data<-This_data
+        inicio<-0
+     }else{
+        Final_data<-rbind(Final_data,This_data)
+     }
+  }
+  write.table(file=outfile, Final_data, row.names=FALSE, col.names=TRUE, sep="\t", append=FALSE)
+  if(barplot){
+    #Se opção 'barplot' for TRUE, gera pdf com gráficos.
+    nsamp<-length(amostras)
+    nr<-floor(nsamp^0.5)
+    nc<-ceiling(nsamp/nr)
+    pdf(file=barplot_file)
+    par(mfrow=c(nr,nc))
+    for (amostra in amostras){
+      files<-paste(amostra,sufixos,".Coverage_full.txt",sep="")
+      F1<-read.table(files[1],sep="\t", header=T, skip=9)
+      F2<-read.table(files[2],sep="\t", header=T, skip=9)
+      Genecounts<-matrix(c(sum(F1$X......2 >= 50)/1000,sum(F2$X......2 >= 50)/1000,
+                           sum(F1$X......3 >= 50)/1000,sum(F2$X......3 >= 50)/1000,
+                           sum(F1$X......4 >= 50)/1000,sum(F2$X......4 >= 50)/1000),2,3)
+      barplot(Genecounts, beside=T, ylim=c(0,70), names=c(">10x", ">20x",">100x"), 
+              main=c("MIC204 - IDC"), sub="Only genes with horizontal coverage > 50%", 
+              col.main="blue", ylab="locus counts (in thousands)")
+    }
+    dev.off()
+  }
+  #output: dataframe com mutações filtradas.
+  return(Final_data)
+}
