@@ -1,0 +1,25 @@
+redpairs_midown_5DBs<-c()
+i=0
+j=0
+for (i in 1:length(micros5dbs)){
+ 
+  name_mir<-micros5dbs[i]
+  mir_Zscore<-min(subset(miRNA_Z_p_t_FDR, miRNA_Z_p_t_FDR$name==name_mir)$Zscore)
+  miRNA_Zp<-as.numeric(min(subset(miRNA_Z_p_t_FDR, miRNA_Z_p_t_FDR$name==name_mir)$Z_pvalues))
+  miRNA_Tp<-as.numeric(min(subset(miRNA_Z_p_t_FDR, miRNA_Z_p_t_FDR$name==name_mir)$t_pvalue_FDR))
+
+    name_genes<-subset(fivedbs, fivedbs$MicroRNA==name_mir)[,2]
+    for (j in 1:length(name_genes)){
+       gene<-as.character(name_genes[j])
+       mRNA_Zscore<-max(subset(mRNA_Z_p_t_bonf, mRNA_Z_p_t$GeneSymbol==gene)$Zscore)     
+       mRNA_Zp<-as.numeric(max(subset(mRNA_Z_p_t_bonf, mRNA_Z_p_t_bonf$GeneSymbol==gene)$Z_pvalues))
+       mRNA_Tp<-as.numeric(min(subset(mRNA_Z_p_t_bonf, mRNA_Z_p_t_bonf$GeneSymbol==gene)$t_pvalue_bonf))
+
+
+       if(mir_Zscore < 0 & mRNA_Zscore > 0 & mRNA_Tp <= 0.05 & miRNA_Tp <= 0.05) {
+          redpairs_midown_5DBs<-c(redpairs_midown_5DBs,name_mir, gene)
+          
+                                         }  
+                                  
+                            }
+                            } 
