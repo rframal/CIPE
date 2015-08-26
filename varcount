@@ -1,0 +1,51 @@
+Varcount <- function(sample, mutations,type, bottom_cover_limit, QD=2 , FS=1.3, varlist=F)
+{
+    
+  #preparando o nomes do arquivo
+  file <-paste(sample,"_fs_qd.snv", sep="")
+  
+  #lendo os arquivos
+  file <- read.table(file, header=T, sep="\t", fill=T)[,c(1:58)]
+  
+  #Criando coluna chrp_pos para merge
+  chrpos<-paste(file$"chr", file$"pos", sep="_")
+  
+  file<-cbind(file,chrpos)
+  
+  #Pegando a variavael cobertura variante e referencia
+  COV <- grep("_COV", colnames(file), value=T)            
+  
+  
+  #Filtrar mutações por cobertura
+  cond_cov <- ( file[,COV[1]] + file[,COV[2]] ) >= bottom_cover_limit
+  
+  #Filtrar mutações dos tipos contidos em "type"
+  cond_type <- file$Type_SNV_or_INDEL %in% type
+  
+  #Filtrar mutações por QD
+  cond_QD <- file$QD >= QD 
+  
+  #Filtrar mutações por FS
+  cond_FS <- file$FS < FS 
+  
+#Filtrar mutações por fenotipo
+  
+  if (type=="SNV"){
+    cond_class <- file$Variant_class2 %in% mutations
+  }   
+  
+  else if (type=="INDEL"){
+    cond_class  <- file$Type_SNV_or_INDEL != 0
+  }
+  
+  result<-file[cond_cov & cond_type & cond_QD & cond_FS & cond_class,]
+  #result<-as.character(result$chrpos)
+  #result<-cbind(result,sample)
+  var_count <- length(unique(file[cond_cov & cond_type & cond_QD & cond_FS & cond_class, 59]))
+  
+  message (sample,"\t", var_count, "\t",mutations,"\t",type,"\t", bottom_cover_limit,"X","\t", "QD>=",QD,"\t", "FS<",FS)
+  #return(sample, var_count)
+  if (varlist==T) {
+  return(result)  
+                }
+}
