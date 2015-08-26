@@ -1,0 +1,214 @@
+mincover_vr<-function(v){
+  #Função para somar coberturas variante  e referencia a cada amostra. Retorna a cobertura mínima entre as amostras
+  k<-length(v)
+  
+  #covers_1 <- v[seq(1,k/2)]+v[seq((k/2)+1,k)] # cobertura (ref + var por particao (sangue ou tumor))
+  
+  #covers <- c(v[1] + v[2], v[3] + v[4])  # cobertura (ref + var por particao (sangue ou tumor))
+  
+  #covers <- c( as.numeric(v[,1]) + as.numeric(v[,3]), as.numeric(v[,2]) + as.numeric(v[,4]))  # cobertura (ref + var por particao (sangue ou tumor))
+   
+  covers <- c( as.numeric(as.matrix(v)[1]) + as.numeric(as.matrix(v)[2]), 
+               as.numeric(as.matrix(v)[3]) + as.numeric(as.matrix(v)[4])  # cobertura (ref + var por particao (sangue ou tumor))
+  )
+  return(min(covers))
+}
+
+Variantes<-function(sample,sufixos=c("T","S"),
+                    mutations=c("MISSENSE","NONSENSE"),type=c("SNV"),location="somatic", 
+                    bottom_cover_limit=20, top_cover_limit=25,freq_lim_neg=5,freq_lim_pos=10,
+                    barplot=FALSE, barplot_file="", QD=2, FS=1.3, 
+                    outfile=""
+                     )
+                    #outfile="Somatic_mutations_new.txt"
+                     {
+  
+  #preparando os nomes dos arquivos
+  fileS <-paste(sample,sufixos[1],"_fs_qd.snv", sep="")
+  fileT <-paste(sample,sufixos[2],"_fs_qd.snv", sep="")
+  
+  #lendo os arquivos
+  fileS<-read.table(fileS, header=T, sep="\t", fill=T)[,c(1:58)]
+  fileT<-read.table(fileT, header=T, sep="\t", fill=T)[,c(1:58)]
+  
+  #Criando coluna chrp_pos para merge
+  chrpos_S<-paste(fileS$chr, fileS$pos, sep="_")
+  chrpos_T<-paste(fileT$chr, fileT$pos, sep="_")
+  
+  fileS<-cbind(fileS,chrpos_S )
+  fileT<-cbind(fileT,chrpos_T )
+  
+  #Merging
+  exomas <- merge(fileS, fileT, by.x="chrpos_S", by.y="chrpos_T")
+    
+  #write.table(file="merge.txt", exomas, sep="\t", row.names=F)
+  
+  #Filtra SNVs com cobertura suficiente e seleciona SNVs somáticas
+  #Filtrando SNVs
+  #exomas<-read.table(Variant_file, header=T, sep="\t")
+  message("\n###################################################################################\n")
+  message("\n Total of ", type, ": ", dim(exomas)[1]) #Printando o total de linhas do arquivo
+  
+  amostras <- grep(sample, colnames(exomas), value=T)     # nome da amostra escolhida
+
+  amostras_COV <- grep("_COV", amostras, value=T)            # selecionando so as colunas do coverage bruto (sangue e tumor)  , removendo frequencia da variante
+  
+  #remove linhas sem valores de covarage
+  complete.lines <- complete.cases(exomas[,amostras_COV])
+  exomas <- exomas[complete.lines,]
+  
+  #verifica se o coverage minimo foi atingido em pelo menos uma particao do paciente, retorna True , False
+  cond_cover <- apply(exomas[,amostras_COV],1,mincover_vr) >= bottom_cover_limit & apply(exomas[,amostras_COV],1,mincover_vr) <= top_cover_limit
+  
+  #Filtrar mutações dos tipos contidos em "type"
+  cond_type <- exomas$Type_SNV_or_INDEL.x %in% type
+                    
+  #Filtrar mutações dos tipos contidos em "mutations"
+  
+  if (type=="SNV"){
+  cond_class <- exomas$Variant_class2.x %in% mutations
+                  }   
+  
+  else if (type=="INDEL"){
+    cond_class  <- exomas$Type_SNV_or_INDEL.x != 0
+                           }
+  
+  #  cond_class  <- exomas$Type_SNV_or_INDEL != 0
+  #Filtrar mutações por QD
+  cond_QD <- exomas$QD.x >= QD  & exomas$QD.y >= QD 
+  
+  #Filtrar mutações por QD
+  cond_FS <- exomas$FS.x < FS  & exomas$FS.y < FS 
+  
+  
+  #Gerando o subset do dataset original com as condições selecionadas
+  subexomas <- exomas[cond_cover & cond_class & cond_type & cond_QD & cond_FS, ]
+  #subexomas <- exomas[cond_cover & cond_class & cond_type, c(1:7)]
+  #subexomas <- cbind(subexomas, exomas[cond_cover & cond_class & cond_type, amostras])
+  #subexomas <- cbind(subexomas, exomas[cond_cover & cond_class & cond_type, c(45:71)])
+  #subexomas <- cbind(subexomas,sample)
+  
+  
+  #Printando na tela o número de variantes que atendem os critérios
+  message("\nRemaining ", type, " after coverage and annotation filtering: ", dim(subexomas)[1], "\n  *Total coverage >", bottom_cover_limit, " & <", top_cover_limit, "\n  *Variant type = ", type, "\n  *Annotation = ", mutations, "\n  *QD >= ", QD, "\n  *FS < ", FS)
+  ##################################################################################################################################
+  #amostras <- sample
+  #amostras <- grep("_COVr",amostras,value=TRUE)
+  #amostras <- grep(paste(sufixos[1],"_",sep=""),amostras,value=TRUE)
+  #amostras <- sapply(amostras,function(str){strsplit(str,sufixos[1],fixed=TRUE)[[1]][1]},USE.NAMES=FALSE)
+  
+  #Obtêm lista de amostras do arquivo 'Variant_file'
+  #inicio=1
+  #for (amostra in amostras){
+    
+    #Separando as colunas de cobertura e frequencia
+    
+    #col_num_FreqV_1<-which(colnames(subexomas)==paste(amostra,sufixos[1],"_FreqV",sep=""))
+    FreqV_T <- paste(sample,sufixos[1],"_FreqV", sep="")
+    
+    #col_num_FreqV_2<-which(colnames(subexomas)==paste(amostra,sufixos[2],"_FreqV",sep=""))
+    FreqV_S <- paste(sample,sufixos[2],"_FreqV", sep="")
+    
+    #col_num_COVr <- which(colnames(subexomas)==paste(amostra,sufixos[1],"_COVr",sep=""))
+    COVr_T <- paste(sample,sufixos[1],"_COVr", sep="")  
+    
+    #col_num_COVv <- which(colnames(subexomas)==paste(amostra,sufixos[1],"_COVv",sep=""))
+    COVv_T <- paste(sample,sufixos[1],"_COVv", sep="")  
+    
+    #col_num_COVr_sangue <- which(colnames(subexomas)==paste(amostra,sufixos[2],"_COVr",sep="")) #  alteração
+    COVr_S <- paste(sample,sufixos[2],"_COVr", sep="")  
+  
+    #col_num_COVv_sangue <- which(colnames(subexomas)==paste(amostra,sufixos[2],"_COVv",sep="")) # alteração
+    COVv_S <- paste(sample,sufixos[2],"_COVv", sep="")  
+    
+    #Aplicando filtro de frequencia de variante
+    
+    #Tumor
+    #cond_sufixo1 <- subexomas[,col_num_FreqV_1] >= freq_lim_pos #presente no tumor
+    cond_FreqV_T <- subexomas[,FreqV_T] >= freq_lim_pos #presente no tumor
+    
+    #cond_sufixo1[is.na(cond_sufixo1)]<-FALSE
+    cond_FreqV_T[is.na(cond_FreqV_T)]<-FALSE
+    
+    #Sangue
+    if (location=="somatic"){
+      #cond_sufixo2 <- subexomas[,col_num_FreqV_2] < freq_lim_neg #ausente no sangue
+      cond_FreqV_S <- subexomas[,FreqV_S] <= freq_lim_neg #ausente no sangue
+                            }
+    else{
+      #cond_sufixo2 <- subexomas[,col_num_FreqV_2] >= freq_lim_pos #presente no sangue
+      cond_FreqV_S <-  subexomas[,FreqV_S] >= freq_lim_pos #presente no sangue
+        }
+    
+    #cond_sufixo2[is.na(cond_sufixo2)]<-FALSE
+    cond_FreqV_S[is.na(cond_FreqV_S)]<-FALSE
+
+  
+  
+  #################################################################################################3
+    #Dataset com variantes que atendem os filtros de frquencia de variantes
+  
+    #This_mutations<-subexomas[cond_sufixo1 & cond_sufixo2,]
+    This_mutations<-subexomas[cond_FreqV_T & cond_FreqV_S,]
+    
+    #Acrescentando o nome da amostra na ultima coluna da tabela
+    tag<-rep(sample, dim(This_mutations)[1])
+    This_mutations <- cbind(This_mutations, tag)
+  
+    if (location=="somatic"){ 
+    
+    message("\nRemaining ", location, " " , type,": ", dim(This_mutations)[1], " in sample ", sample,"\n  *Presence in tumor: Variant frequency >= ", freq_lim_pos,"%","\n  *Absence in blood: Variant frequency <= ", freq_lim_neg,"%") #location (somatic or not), type (SNV or INDEL)
+                             }
+  
+    else if (location=="germinative") {
+    message("\nRemaining ", location, " " , type,": ", dim(This_mutations)[1], " in sample ", sample,"\n  *Presence in tumor: Variant frequency >= ", freq_lim_pos,"%","\n  *Presence in blood: Variant frequency >= ", freq_lim_neg,"%") #location (somatic or not), type (SNV or INDEL)
+                                        }
+    message("\n###################################################################################\n")
+    write.table(file=outfile, This_mutations, row.names=FALSE, sep="\t", append=T)
+  
+    #De acordo com 'location', filtra mutações somáticas, ausentes no sangue, ou germinativas, presentes em sangue e tumor.
+    #This_data<-data.frame(Pac=rep(amostra,NROW(This_mutations)),This_mutations[,c(1:3,col_num_COVr_sangue,col_num_COVv_sangue,col_num_COVr,col_num_COVv,col_num_FreqV_1,45:71)])
+    #colnames(This_data)<-c("Sample",colnames(subexomas)[1:3],
+    #                       paste(sufixos[2],"COVr",sep="_"), paste(sufixos[2],"COVv",sep="_"),
+    #                       paste(sufixos[1],"COVr",sep="_"),paste(sufixos[1],"COVv",sep="_"),
+    #                       paste(sufixos[1],"FreqV",sep="_"),
+    #                       colnames(subexomas)[c(45:71)])
+    #if(inicio==1){
+    #  Final_data<-This_data
+    #  inicio<-0
+    #}else{
+    #  Final_data<-rbind(Final_data,This_data)
+    #}
+  #}
+  
+  
+  
+  
+ # write.table(file=outfile, Final_data, row.names=FALSE, col.names=TRUE, sep="\t", append=FALSE)
+  if(barplot){
+  #  #Se opção 'barplot' for TRUE, gera pdf com gráficos.
+   # nsamp<-length(amostras)
+  #  nr<-floor(nsamp^0.5)
+  #  nc<-ceiling(nsamp/nr)
+    jpeg(file=barplot_file, width=4 , height=4 , units="in", res=300)
+    #pdf(file=barplot_file)
+    #par(mfrow=c(1,2))
+    #for (amostra in amostras){
+      files<-c(paste(sample,sufixos[1],".Coverage_full.txt", sep=""), paste(sample,sufixos[2],".Coverage_full.txt", sep="") )
+      #files<-paste(amostra,sufixos,".Coverage_full.txt",sep="")
+      F1<-read.table(files[1],sep="\t", header=T, skip=9) #Tumor
+      F2<-read.table(files[2],sep="\t", header=T, skip=9) #Sangue
+      Genecounts<-matrix(c(sum(F1$X......2 >= 100)/1000, # olhando na coluna de 10X quais genes tem cobertura horizontal >50% 
+                           sum(F2$X......2 >= 100)/1000, 
+                           sum(F1$X......3 >= 100)/1000, #olhando na coluna de 20X quais genes tem cobertura horizontal >50% 
+                           sum(F2$X......3 >= 100)/1000,
+                           sum(F1$X......4 >= 100)/1000, #olhando na coluna de 100X quais genes tem cobertura horizontal >50% 
+                           sum(F2$X......4 >= 100)/1000),2,3)
+      barplot(Genecounts, beside=T, ylim=c(0,90), names=c(">10x", ">20x",">100x"),
+              main=c(sample), sub="Only genes with horizontal coverage = 100%",
+              col.main="blue", ylab="loci counts (in thousands)", col=c("dark grey", "white"))
+    legend(6.5,90,legend=c("tumor","sangue"), fill=c("dark grey", "white"), cex=0.8)
+      
+    }
+    dev.off()
+  }
