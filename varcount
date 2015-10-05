@@ -1,6 +1,8 @@
 Varcount <- function(sample, mutations,type, bottom_cover_limit, QD=2 , FS=1.3, varlist=F)
 {
     
+  #mutations (SILENT, MISSENSE, NONSENSE)
+  
   #preparando o nomes do arquivo
   file <-paste(sample,"_fs_qd.snv", sep="")
   
