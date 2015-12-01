@@ -1,0 +1,33 @@
+#Lê uma lista de amostra e retorna lista de genes com cobertura média acima de um limiar em todas as amostras
+
+Checkcov <- function(amostras, min_cover){
+
+result<-list()
+
+for (i in 1:length(amostras)){
+COVs_file   <- paste(amostras[i],".Coverage_full.txt", sep="")
+temp        <- read.table(COVs_file, header=T, skip=9, sep="\t")
+
+if (min_cover == 10){ 
+  cond_cover <- temp$"X......2" == 100.00 
+}
+
+
+if (min_cover == 20){ 
+cond_cover <- temp$"X......3" == 100.00
+                             }
+
+if (min_cover == 50){ 
+cond_cover <-  temp$"X......4" == 100.00
+                              }
+
+if (min_cover == 100){ 
+cond_cover <- temp$"X......5" == 100.00
+                    }
+
+result[[i]]<-temp[cond_cover,1]
+
+                             }
+genenames <- names(table(unlist(result))==12)
+return(genenames)                                 
+}
