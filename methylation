@@ -1,0 +1,64 @@
+#methylation("TNF-alpha_convertido", CpG_positions, "list_sorted_bam", "butanta_TNF.txt"  )
+
+cutsite <- function(reference_ID, bamfile, site_pos){
+  library(GenomicAlignments)
+  CpGpos    <- GRanges(reference_ID, IRanges(site_pos,site_pos))
+  indexfile <- paste(bamfile, "bai", sep=".")
+  CpGaf     <- alphabetFrequencyFromBam(file=bamfile, index=indexfile, param=ScanBamParam(which=CpGpos), baseOnly=TRUE)
+  return(CpGaf)
+}
+
+methylation <- function(referenceID, CpGposfile,  bamfilelist, outfile){
+  
+  #Lendo a lista de bams
+  bamfiles      <- read.table(bamfilelist)
+  
+  #Lendo os IDs dos CpGs
+  CpGID      <- read.table(CpGposfile)[1] 
+  
+  #Lendo as posições dos CpGs
+  CpGpos      <- read.table(CpGposfile)[2] 
+    
+    
+for (i in 1:length(CpGpos[,1])){
+   
+  
+CpGresult   <- apply (bamfiles, 1, function(x)  cutsite(bamfile=x, reference_ID=referenceID, site_pos=CpGpos[i,1]) )
+
+#Calculando metilação e conversao
+CpGcoverage  <- apply(CpGresult, 2 , sum)
+
+ if ( grepl("CpG", CpGID[i,1])==T ){ #Verificando se é sitio CpG (não controle)
+      
+      freqC        <- CpGresult[2,]
+      methylation  <- freqC / CpGcoverage
+ 
+      #Formatando e imprimindo
+      CpGresult <- t(CpGresult)
+      CpGresult <- cbind(referenceID,CpGresult )
+      CpGresult <- cbind(bamfiles,CpGresult )
+      CpGresult <- cbind(CpGID[i,1], CpGresult )
+      CpGresult <- cbind(methylation,CpGresult ) 
+
+      colnames(CpGresult) <- c("methylation","site", "file","reference","A","C","G","T", "other")
+      write.table(file=outfile, CpGresult , append=T, row.names=F)
+                          }
+
+else {
+  freqT        <- CpGresult[4,]
+  conversion   <- freqT / CpGcoverage
+  
+  #Formatando e imprimindo
+  CpGresult    <- t(CpGresult)
+  CpGresult <- cbind(referenceID,CpGresult )
+  CpGresult    <- cbind(bamfiles,CpGresult )
+  CpGresult    <- cbind(CpGID[i,1], CpGresult )
+  CpGresult    <- cbind(conversion,CpGresult )     
+  
+  colnames(CpGresult) <- c("conversion","site", "file","reference","A","C","G","T", "other")
+  write.table(file=outfile, CpGresult , append=T, row.names=F)     
+      }
+                         } #end of position loop
+                     
+} #end of function
+
