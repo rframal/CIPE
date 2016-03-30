@@ -1,0 +1,120 @@
+
+#Este script faz o seguinte:
+
+#1 - Filtra variantes do tumor
+#2 - Remove as variantes do tumor que apareceram no leucocito
+#3 - Uso o bam do leucocito para achar a cobertura das variantes selecionadas em 2
+
+#Exemplo: getcovleuco2("MELC", sufixos=c("tumor","leuco"), mutations = "MISSENSE", type="INDEL", bottom_cover_limit = 10, , bamfile_leuco = "MELC_leuco.processed.bam")
+
+# Função cutsite que pega a cobertura de uma posição no genoma
+
+cutsite <- function(reference_ID, bamfile, site_pos){
+  library(GenomicAlignments)
+  CpGpos    <- GRanges(reference_ID, IRanges(site_pos,site_pos))
+  indexfile <- paste(bamfile, "bai", sep=".")
+  CpGaf     <- alphabetFrequencyFromBam(file=bamfile, index=indexfile, param=ScanBamParam(which=CpGpos), baseOnly=TRUE)
+  return(CpGaf)
+                                                  }
+  
+#Função principal
+
+getcovleuco2 <- function(sample, sufixos=c("tumor","leuco"), mutations,type, bottom_cover_limit, QD=2 , freq_lim_pos=10, FS=1.3, varlist=F, bamfile_leuco)
+{
+  library(Hmisc)
+  
+  #mutations (SILENT, MISSENSE, NONSENSE)
+  
+  #preparando o nomes do arquivo
+  #file <-paste(sample,"_fs_qd.snv", sep="")
+  
+  fileT <-paste(sample,"_",sufixos[1],"_fs_qd.snv", sep="") #tumor
+  fileS <-paste(sample,"_",sufixos[2],"_fs_qd.snv", sep="") #leuco
+  
+  #lendo os arquivos
+  fileT <- read.table(fileT, header=T, sep="\t", fill=T)[,c(1:58)]
+  fileS <- read.table(fileS, header=T, sep="\t", fill=T)[,c(1:58)]
+  
+  #Criando coluna chrp_pos para tumor e sangue
+  chrposT<-paste(fileT$"chr", fileT$"pos", sep="_")
+  
+  chrposS<-paste(fileS$"chr", fileS$"pos", sep="_")
+  
+  #Colando a coluna chrpos nos datasets de tumor
+  fileT<-cbind(fileT,chrposT)
+  
+  
+  #Pegando a variavael cobertura variante no tumor
+  COV <- grep("_COV", colnames(fileT), value=T)   
+  
+  #COV <- grep("_COVv", colnames(fileT), value=T)  # considerando so cobertura da variante descomentar aqui
+  
+  #Filtrar mutações por cobertura
+  #cond_cov <- fileT[,COV] >= bottom_cover_limit # considerando so cobertura da variante descomentar aqui
+  
+  cond_cov <- ( fileT[,COV[1]] + fileT[,COV[2]] ) >= bottom_cover_limit
+  
+  #Filtrar mutações dos tipos contidos em "type"
+  cond_type <- fileT$Type_SNV_or_INDEL %in% type
+  
+  #Filtrar mutações por QD
+  cond_QD <- fileT$QD >= QD 
+  
+  #Filtrar mutações por FS
+  cond_FS <- fileT$FS < FS 
+  
+  #Filtrar mutações por fenotipo
+  
+  if (type=="SNV"){
+    cond_class <- fileT$Variant_class2 %in% mutations
+  }   
+  
+  else if (type=="INDEL"){
+    cond_class  <- fileT$Type_SNV_or_INDEL != 0
+  }
+  
+  #Filtrar mutações por frequencia da variante
+  FreqV <- paste(sample,"_", sufixos[1],"_FreqV", sep="")  
+  cond_Freq <- fileT[,FreqV] > freq_lim_pos
+  
+  #Filtrar mutações que não estão no leucocito
+  cond_not_in_leuco <- fileT[,"chrposT"] %nin%  chrposS
+  
+  #Gerando dataset filtrado
+  result<-fileT[cond_cov & cond_type & cond_QD & cond_FS & cond_class & cond_Freq & cond_not_in_leuco,]
+  
+
+  
+    #result<-as.character(result$chrpos)
+  #result<-cbind(result,sample)
+  
+  var_count <- length(unique(fileT[cond_cov & cond_type & cond_QD & cond_FS & cond_class & cond_Freq & cond_not_in_leuco, 59]))
+  
+  message (sample,"\t", var_count, "\t",mutations,"\t",type,"\t", bottom_cover_limit,"X","\t",">",freq_lim_pos,"%","\t", "QD>=",QD,"\t", "FS<",FS)
+  #return(sample, var_count)
+  if (varlist==T) {
+    return(result)  
+                 }
+
+  
+  
+#3
+
+freqs           <- matrix(ncol=5, nrow=dim(result)[1])
+colnames(freqs) <- c("A","C","G","T","other")
+
+
+for (i in 1:dim(result)[1] ){
+
+  reference_ID <- result[i,"chr"]
+  bamfile      <- bamfile_leuco
+  site_pos     <- result[i,"pos"]
+
+freqs[i,] <- as.numeric(cutsite(reference_ID, bamfile, site_pos)[1,])
+    
+                         } 
+  
+output <- cbind(result, freqs)
+write.table(file="somatic_candidates.txt", output, row.names = F, sep="\t", quote = F)
+
+}# END OF WHOLE FUNCTION
