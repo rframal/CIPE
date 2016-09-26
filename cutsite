@@ -1,0 +1,17 @@
+cutsite <- function(listpos, bamfile, addborder){
+  library(GenomicAlignments)
+  
+  listpos <- read.table(listpos)
+  
+  counts <- seq(1:(2*addborder+1))
+  
+  for (i in 1:dim(listpos)[1]) {
+    
+    pos       <- GRanges(listpos[i,1], IRanges(listpos[i,2]-addborder,listpos[i,2]+addborder))
+    indexfile <- paste(bamfile, "bai", sep=".")
+    af        <- alphabetFrequencyFromBam(file=bamfile, index=indexfile, param=ScanBamParam(which=pos), baseOnly=TRUE)
+    af <-cbind(counts,listpos[i,],af)
+    colnames(af)<-c("#","Chr","Pos","A","C","G","T","other")
+    write.table(file="cutsite3.out", af, append=T, sep="\t", row.names=F)
+  }
+}
