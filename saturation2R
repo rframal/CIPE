@@ -1,0 +1,112 @@
+#Parser para os resultados do programa saturation.py do pacote RSeQC
+
+saturation_table2 <- function(csv_list_samples){
+  
+  library('biomaRt')
+  human <- useMart(host="www.ensembl.org", "ENSEMBL_MART_ENSEMBL", dataset="hsapiens_gene_ensembl")
+  
+  samples      <- as.character(read.table(csv_list_samples)[,1]) # list of csv files 
+  
+  
+  
+  #Lendo os csvs
+  
+  for(i in samples) { 
+    x <- read.csv((i), header=T, sep="\t")
+    i <- gsub(".csv", "", i)
+    assign(i, x)
+                  }
+  
+  #Preparando a matrix de resultados
+  gene_counts <- matrix(ncol=21,nrow=length(samples))
+  colnames(gene_counts)<-c("samples","X5","X10","X15","X20","X25","X30","X35","X40","X45","X50","X55","X60","X65","X70","X75","X80","X85","X90","X95","X100")
+  
+  
+  #Pega a lista de NM_IDS
+ 
+  counter<-as.integer(1)
+  for(i in samples) { 
+    print(counter)
+    i <- gsub(".csv", "", i)
+    refseqID <-  get(i)$name
+  
+    G_list.coding    <- getBM(filters="refseq_mrna" , attributes=c("refseq_mrna", "ensembl_gene_id", "hgnc_symbol"), values=refseqID, mart=human)
+    G_list.noncoding <- getBM(filters="refseq_ncrna" , attributes=c("refseq_ncrna", "ensembl_gene_id", "hgnc_symbol"), values=refseqID, mart=human)
+    
+    #Igualando os nomes das colunas
+    colnames(G_list.coding)   <-c("refseq", "ensembl_gene_id", "hgnc_symbol")
+    colnames(G_list.noncoding)<-c("refseq", "ensembl_gene_id", "hgnc_symbol")
+    
+    #Juntando as listas de genes
+    G_list_both <- rbind(G_list.coding, G_list.noncoding)
+    G_list_final <- G_list_both[G_list_both$hgnc_symbol!="",]
+    
+    #Fazendo o merge dos Gene Symbols no dataset original
+    
+    sample_name <- strsplit(i, ".", fixed=T)[[1]][1]
+    table_name <- paste(sample_name, "saturation.eRPKM", sep="." )
+    final_table <- merge(get(table_name), G_list_final, by.x="name", by.y="refseq", all.x=T)
+    
+    #Escrevendo a tabela final
+    final_table_name <- paste(sample_name, "saturation.eRPKM.genesymbol.txt", sep=".")
+    write.table(file=final_table_name[1], final_table, row.names=F, sep="\t")
+    
+    
+    gene_counts[counter,"samples"] <- as.character(sample_name)
+    
+    #numlin <- gene_counts[,1]==sample_name
+    
+    gene_counts[counter,"X5"] <- as.integer(length(unique(final_table[final_table$X5>0,"hgnc_symbol"])))
+    gene_counts[counter,"X10"] <- as.integer(length(unique(final_table[final_table$X10>0,"hgnc_symbol"])))
+    gene_counts[counter,"X15"] <- as.integer(length(unique(final_table[final_table$X15>0,"hgnc_symbol"])))
+    gene_counts[counter,"X20"] <- as.integer(length(unique(final_table[final_table$X20>0,"hgnc_symbol"])))
+    gene_counts[counter,"X25"] <- as.integer(length(unique(final_table[final_table$X25>0,"hgnc_symbol"])))
+    gene_counts[counter,"X30"] <- as.integer(length(unique(final_table[final_table$X30>0,"hgnc_symbol"])))
+    gene_counts[counter,"X35"] <- as.integer(length(unique(final_table[final_table$X35>0,"hgnc_symbol"])))
+    gene_counts[counter,"X40"] <- as.integer(length(unique(final_table[final_table$X40>0,"hgnc_symbol"])))
+    gene_counts[counter,"X45"] <- as.integer(length(unique(final_table[final_table$X45>0,"hgnc_symbol"])))
+    gene_counts[counter,"X50"] <- as.integer(length(unique(final_table[final_table$X50>0,"hgnc_symbol"])))
+    gene_counts[counter,"X55"] <- as.integer(length(unique(final_table[final_table$X55>0,"hgnc_symbol"])))
+    gene_counts[counter,"X60"] <- as.integer(length(unique(final_table[final_table$X60>0,"hgnc_symbol"])))
+    gene_counts[counter,"X65"] <- as.integer(length(unique(final_table[final_table$X65>0,"hgnc_symbol"])))
+    gene_counts[counter,"X70"] <- as.integer(length(unique(final_table[final_table$X70>0,"hgnc_symbol"])))
+    gene_counts[counter,"X75"] <- as.integer(length(unique(final_table[final_table$X75>0,"hgnc_symbol"])))
+    gene_counts[counter,"X80"] <- as.integer(length(unique(final_table[final_table$X80>0,"hgnc_symbol"])))
+    gene_counts[counter,"X85"] <- as.integer(length(unique(final_table[final_table$X85>0,"hgnc_symbol"])))
+    gene_counts[counter,"X90"] <- as.integer(length(unique(final_table[final_table$X90>0,"hgnc_symbol"])))
+    gene_counts[counter,"X95"] <- as.integer(length(unique(final_table[final_table$X95>0,"hgnc_symbol"])))
+    gene_counts[counter,"X100"] <- as.integer(length(unique(final_table[final_table$X100>0,"hgnc_symbol"])))
+    
+    rm(G_list.coding)
+    rm(G_list.noncoding)
+    
+    counter <- counter+1    
+  }
+#return(gene_counts)
+write.table(file="saturation_table.txt", gene_counts, row.names=F, sep="\t")
+}
+
+  #Tabela vazia para resultados de metilacao/conversao
+#  resultsfinal <- matrix( ncol=21,  nrow=length(samples)) # 21 colunas - samplename + 5%-100%
+#  resultsfinal <- as.data.frame(resultsfinal)
+#  colnames(resultsfinal) <- c("sampleID", "5", "10", "15", "20", "25", "30", "35", "40", "45","50", "55", "60", "65", "70", "75", "80", "85", "90", "95", "100")
+
+  #Prenchendo as tabelas
+#  resultsfinal[,1] <- samples
+  
+  
+  # Loop por amostra   
+#  for (i in 1:dim(samples)[1]){
+    
+    #Lendo csv
+    
+#    sample[i].rpkm <- read.table("m303t.saturation.eRPKM.csv", header=T, sep="\t")
+    
+    #Pega a lista de NM_IDS
+    
+ #   refseqID <-  samples[i]$name
+    
+    #Conta os totais de bases no sitio i
+#    CpGresult   <- apply (as.array(re), 1, function(x)  cutsite(bamfile=x, reference_ID=referenceID, site_pos=CpGpos[i]) )
+    
+  
